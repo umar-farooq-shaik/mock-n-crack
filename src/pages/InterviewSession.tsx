@@ -1,0 +1,590 @@
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Mic, MicOff, Play, Square, Send, RotateCcw } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+
+// Question banks
+const questionBanks = {
+  hr: [
+    "Tell me about yourself",
+    "What are your biggest strengths?",
+    "Why do you want to join our company?",
+    "How do you handle stress or pressure?",
+    "Why should we hire you?",
+    "Have you faced any failure? What did you learn from it?",
+    "Do you prefer working in a team or independently?",
+    "Can you share your weakness and explain how you're working to improve it?",
+    "What are your salary expectations?",
+    "What motivates you at work?",
+    "Where do you see yourself in 5 years?",
+    "How do you respond to criticism?",
+    "Do you have any questions for us?"
+  ],
+  managerial: [
+    "Tell me about some of the projects you’ve worked on and what you contributed",
+    "What was the most challenging part of your project?",
+    "Tell me about a situation where you worked in a team. What was your role?",
+    "What would you do if your task is stuck but the deadline is close?",
+    "How do you handle conflicts within a team?",
+    "How do you handle feedback?",
+    "What value will you bring to our team?",
+    "How do you handle deadlines?",
+    "Can you share an example of a time you faced a challenging situation and how you overcame it?",
+    "What are your long-term career goals?"
+  ],
+  technical: {
+    "ReactJS": [
+      "What is JSX?",
+      "What is a hook in React?",
+      "How does useEffect work?",
+      "What is the virtual DOM?",
+      "What are props in React?"
+    ],
+    "JavaScript": [
+      "Explain closures in JavaScript.",
+      "What is the difference between let, const, and var?",
+      "How does async/await work?",
+      "What is event delegation?",
+      "Explain the this keyword in JavaScript."
+    ],
+    "Python": [
+      "What are Python decorators?",
+      "Explain list comprehensions.",
+      "What is the difference between lists and tuples?",
+      "How does Python's GIL work?",
+      "What are Python generators?"
+    ]
+  }
+};
+
+export default function InterviewSession() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const [interviewType, setInterviewType] = useState(searchParams.get("type") || "technical");
+  const [topic, setTopic] = useState("");
+
+  // Update interview type when URL parameters change
+  useEffect(() => {
+    const typeParam = searchParams.get("type");
+    if (typeParam && ["technical", "hr", "managerial"].includes(typeParam)) {
+      setInterviewType(typeParam);
+      // Reset session if type changes
+      setSessionStarted(false);
+      setSessionCompleted(false);
+      setCurrentQuestion(0);
+      setQuestions([]);
+      setAnswers([]);
+      setCurrentAnswer("");
+    }
+  }, [searchParams]);
+
+  const [sessionStarted, setSessionStarted] = useState(false);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [answers, setAnswers] = useState<string[]>([]);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [currentAnswer, setCurrentAnswer] = useState("");
+  const [tokens, setTokens] = useState(10000);
+  const [sessionCompleted, setSessionCompleted] = useState(false);
+
+  const recognitionRef = useRef<any>(null);
+  const synthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  useEffect(() => {
+    // Load tokens from localStorage
+    const savedTokens = localStorage.getItem("mockNCrackTokens");
+    if (savedTokens) {
+      setTokens(parseInt(savedTokens));
+    }
+
+    // Initialize speech recognition
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event) => {
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          }
+        }
+        if (finalTranscript) {
+          setCurrentAnswer(prev => prev + ' ' + finalTranscript);
+        }
+      };
+
+      recognitionRef.current.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        toast({
+          title: "Speech Recognition Error",
+          description: "Please try again or check your microphone permissions.",
+          variant: "destructive"
+        });
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+  }, [toast]);
+
+  const generateQuestions = () => {
+    let selectedQuestions: string[] = [];
+
+    if (interviewType === "hr") {
+      selectedQuestions = [...questionBanks.hr];
+    } else if (interviewType === "managerial") {
+      selectedQuestions = [...questionBanks.managerial];
+    } else if (interviewType === "technical") {
+      // For technical questions, we'll fetch them dynamically during the session
+      // Return empty array for now, questions will be generated one by one
+      return [];
+    }
+
+    // Shuffle and take 5 questions for HR/Managerial
+    const shuffled = selectedQuestions.sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, 5);
+  };
+
+  const getNextTechnicalQuestion = async (): Promise<string> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-question', {
+        body: { topic }
+      });
+
+      if (error) {
+        console.error('Error calling generate-question function:', error);
+        throw new Error('Failed to generate question');
+      }
+
+      return data.question;
+    } catch (error) {
+      console.error('Error getting technical question:', error);
+      // Fallback to a generic question
+      return `Explain a key concept related to ${topic}.`;
+    }
+  };
+
+  const speakQuestion = (question: string) => {
+    if ('speechSynthesis' in window) {
+      setIsSpeaking(true);
+      const utterance = new SpeechSynthesisUtterance(question);
+      utterance.rate = 0.9;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+
+      // Get female voice
+      const voices = speechSynthesis.getVoices();
+      const femaleVoice = voices.find(voice =>
+        voice.name.includes('Female') ||
+        voice.name.includes('Samantha') ||
+        voice.name.includes('Victoria') ||
+        voice.name.toLowerCase().includes('female')
+      );
+
+      if (femaleVoice) {
+        utterance.voice = femaleVoice;
+      }
+
+      utterance.onend = () => {
+        setIsSpeaking(false);
+      };
+
+      synthesisRef.current = utterance;
+      speechSynthesis.speak(utterance);
+    }
+  };
+
+  const startSession = async () => {
+    if (tokens < 5) {
+      toast({
+        title: "Insufficient Tokens",
+        description: "You need at least 5 tokens to start a session.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (interviewType === "technical" && !topic.trim()) {
+      toast({
+        title: "Topic Required",
+        description: "Please enter a topic for the technical interview.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSessionStarted(true);
+    setCurrentQuestion(0);
+    setAnswers([]);
+
+    if (interviewType === "technical") {
+      // For technical interviews, generate questions dynamically
+      setQuestions([]); // Start with empty array
+
+      // Get first question
+      try {
+        const firstQuestion = await getNextTechnicalQuestion();
+        setQuestions([firstQuestion]);
+
+        setTimeout(() => {
+          speakQuestion(firstQuestion);
+        }, 1000);
+      } catch (error) {
+        toast({
+          title: "Error Loading Question",
+          description: "Failed to load the first question. Please try again.",
+          variant: "destructive"
+        });
+        setSessionStarted(false);
+      }
+    } else {
+      // For HR/Managerial, use pre-generated questions
+      const sessionQuestions = generateQuestions();
+      setQuestions(sessionQuestions);
+
+      setTimeout(() => {
+        speakQuestion(sessionQuestions[0]);
+      }, 1000);
+    }
+  };
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      toast({
+        title: "Speech Recognition Not Available",
+        description: "Your browser doesn't support speech recognition.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      setCurrentAnswer("");
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
+  };
+
+  const submitAnswer = async () => {
+    if (!currentAnswer.trim()) {
+      toast({
+        title: "No Answer Recorded",
+        description: "Please record an answer before submitting.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Stop recording if currently listening
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
+
+    // Deduct token
+    const newTokens = tokens - 1;
+    setTokens(newTokens);
+    localStorage.setItem("mockNCrackTokens", newTokens.toString());
+
+    // Dispatch custom event to update navigation
+    window.dispatchEvent(new CustomEvent('tokensUpdated', { detail: newTokens }));
+
+    // Save answer
+    const newAnswers = [...answers, currentAnswer.trim()];
+    setAnswers(newAnswers);
+    setCurrentAnswer("");
+
+    // Check if session completed
+    if (currentQuestion >= 4) {
+      setSessionCompleted(true);
+
+      // Save session data
+      const sessionData = {
+        interview_type: interviewType,
+        topic: interviewType === "technical" ? topic : undefined,
+        questions,
+        answers: newAnswers,
+        status: "completed",
+        date: new Date().toISOString()
+      };
+
+      const savedSessions = JSON.parse(localStorage.getItem("mockNCrackSessions") || "[]");
+      savedSessions.push(sessionData);
+      localStorage.setItem("mockNCrackSessions", JSON.stringify(savedSessions));
+
+      toast({
+        title: "Session Completed!",
+        description: "Your interview session has been saved.",
+      });
+    } else {
+      // Move to next question
+      const nextQuestion = currentQuestion + 1;
+      setCurrentQuestion(nextQuestion);
+
+      if (interviewType === "technical") {
+        // For technical interviews, get the next question dynamically
+        try {
+          const nextQuestionText = await getNextTechnicalQuestion();
+          setQuestions(prev => [...prev, nextQuestionText]);
+
+          setTimeout(() => {
+            speakQuestion(nextQuestionText);
+          }, 1000);
+        } catch (error) {
+          toast({
+            title: "Error Loading Next Question",
+            description: "Failed to load the next question. Please try again.",
+            variant: "destructive"
+          });
+        }
+      } else {
+        // For HR/Managerial, use the pre-loaded questions
+        setTimeout(() => {
+          speakQuestion(questions[nextQuestion]);
+        }, 1000);
+      }
+    }
+  };
+
+  const restartSession = () => {
+    setSessionStarted(false);
+    setSessionCompleted(false);
+    setCurrentQuestion(0);
+    setQuestions([]);
+    setAnswers([]);
+    setCurrentAnswer("");
+  };
+
+  if (sessionCompleted) {
+    return (
+      <div className="min-h-screen bg-background py-8">
+        <div className="container mx-auto px-4 max-w-4xl">
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle className="text-2xl text-accent-green">Session Completed! 🎉</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="text-center">
+                <p className="text-lg text-foreground/70 mb-4">
+                  Great job! You've completed your {interviewType} interview session.
+                </p>
+                <Badge variant="secondary" className="text-lg px-4 py-2">
+                  5 Questions Answered
+                </Badge>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Your Answers:</h3>
+                {answers.map((answer, index) => (
+                  <div key={index} className="border rounded-lg p-4">
+                    <p className="font-medium text-sm text-foreground/60 mb-2">
+                      Q{index + 1}: {questions[index]}
+                    </p>
+                    <p className="text-foreground">{answer}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-4 justify-center">
+                <Button onClick={restartSession} variant="outline">
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  New Session
+                </Button>
+                <Button onClick={() => navigate("/")} className="bg-accent-green hover:bg-accent-green/90">
+                  Back to Home
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background py-8">
+      <div className="container mx-auto px-4 max-w-4xl">
+        {!sessionStarted ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-2xl">Start Interview Session</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Interview Type Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="interview-type">Interview Type</Label>
+                <Select value={interviewType} onValueChange={setInterviewType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select interview type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="technical">Technical Interview</SelectItem>
+                    <SelectItem value="hr">HR Interview</SelectItem>
+                    <SelectItem value="managerial">Managerial Interview</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Topic Input for Technical */}
+              {interviewType === "technical" && (
+                <div className="space-y-2">
+                  <Label htmlFor="topic">Enter Topic for Technical Interview</Label>
+                  <Input
+                    placeholder="e.g., ReactJS, Python, REST APIs, System Design"
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    className="text-base"
+                  />
+                </div>
+              )}
+
+
+              {/* Token Info */}
+              <div className="bg-muted p-4 rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Available Tokens:</span>
+                  <Badge variant={tokens >= 5 ? "default" : "destructive"}>
+                    {tokens.toLocaleString()}
+                  </Badge>
+                </div>
+                <p className="text-sm text-foreground/60">
+                  This session will use 5 tokens (1 per question)
+                </p>
+              </div>
+
+              {/* Start Button */}
+              <Button
+                onClick={startSession}
+                disabled={tokens < 5}
+                className={`w-full ${interviewType === "managerial"
+                  ? "bg-accent-orange hover:bg-accent-orange/90 text-accent-orange-foreground"
+                  : ""
+                  }`}
+                size="lg"
+              >
+                <Play className="w-5 h-5 mr-2" />
+                Start {interviewType.charAt(0).toUpperCase() + interviewType.slice(1)} Interview
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-6">
+            {/* Session Progress */}
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h2 className="text-xl font-semibold">
+                      {interviewType.charAt(0).toUpperCase() + interviewType.slice(1)} Interview
+                    </h2>
+                    {interviewType === "technical" && (
+                      <p className="text-foreground/60">Topic: {topic}</p>
+                    )}
+                  </div>
+                  <Badge variant="outline">
+                    Question {currentQuestion + 1} of 5
+                  </Badge>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div
+                    className="bg-primary h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${((currentQuestion + 1) / 5) * 100}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Current Question */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Current Question</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-muted p-4 rounded-lg mb-4">
+                  <p className="text-lg">{questions[currentQuestion]}</p>
+                </div>
+
+                {isSpeaking && (
+                  <div className="flex items-center text-primary mb-4">
+                    <div className="animate-pulse w-2 h-2 bg-primary rounded-full mr-2" />
+                    <span className="text-sm">Speaking question...</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Voice Recording */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Your Answer</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-muted p-4 rounded-lg min-h-[100px]">
+                  {currentAnswer || (
+                    <span className="text-foreground/50">
+                      Click the microphone to start recording your answer...
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex gap-4">
+                  <Button
+                    onClick={toggleListening}
+                    variant={isListening ? "destructive" : "default"}
+                    size="lg"
+                    className="flex-1"
+                  >
+                    {isListening ? (
+                      <>
+                        <Square className="w-5 h-5 mr-2" />
+                        Stop Recording
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="w-5 h-5 mr-2" />
+                        Start Recording
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    onClick={submitAnswer}
+                    disabled={!currentAnswer.trim()}
+                    className="bg-accent-green hover:bg-accent-green/90"
+                    size="lg"
+                  >
+                    <Send className="w-5 h-5 mr-2" />
+                    Submit Answer
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
