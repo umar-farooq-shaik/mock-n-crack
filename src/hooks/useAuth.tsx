@@ -1,0 +1,212 @@
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+interface AuthContextType {
+  user: User | null;
+  session: Session | null;
+  tokens: number;
+  loading: boolean;
+  signInWithGoogle: () => Promise<void>;
+  signOut: () => Promise<void>;
+  updateTokens: (change: number) => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export const AuthProvider = ({ children }: AuthProviderProps) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [tokens, setTokens] = useState(10000); // Default fallback
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  const fetchUserTokens = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('token_balance')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching user tokens:', error);
+        return;
+      }
+
+      if (data) {
+        setTokens(data.token_balance);
+        // Update localStorage for backward compatibility
+        localStorage.setItem('mockNCrackTokens', data.token_balance.toString());
+        // Dispatch custom event for components listening to token updates
+        window.dispatchEvent(new CustomEvent('tokensUpdated', { detail: data.token_balance }));
+      }
+    } catch (error) {
+      console.error('Error fetching tokens:', error);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
+
+      if (error) {
+        toast({
+          title: "Sign In Error",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error signing in with Google:', error);
+      toast({
+        title: "Sign In Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        toast({
+          title: "Sign Out Error",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        setUser(null);
+        setSession(null);
+        setTokens(10000); // Reset to default
+        localStorage.removeItem('mockNCrackTokens');
+        toast({
+          title: "Signed Out",
+          description: "You have been successfully signed out.",
+        });
+      }
+    } catch (error) {
+      console.error('Error signing out:', error);
+      toast({
+        title: "Sign Out Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateTokens = async (change: number) => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase.rpc('update_user_tokens', {
+        user_uuid: user.id,
+        token_change: change,
+      });
+
+      if (error) {
+        console.error('Error updating tokens:', error);
+        toast({
+          title: "Token Update Error",
+          description: "Failed to update tokens. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setTokens(data);
+      localStorage.setItem('mockNCrackTokens', data.toString());
+      window.dispatchEvent(new CustomEvent('tokensUpdated', { detail: data }));
+      
+      toast({
+        title: "Tokens Updated",
+        description: `${change > 0 ? 'Added' : 'Used'} ${Math.abs(change)} tokens. Balance: ${data}`,
+      });
+    } catch (error) {
+      console.error('Error updating tokens:', error);
+    }
+  };
+
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          // Defer token fetching to prevent potential deadlocks
+          setTimeout(() => {
+            fetchUserTokens(session.user.id);
+          }, 0);
+        } else {
+          setTokens(10000); // Reset to default when not authenticated
+        }
+        
+        setLoading(false);
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        setTimeout(() => {
+          fetchUserTokens(session.user.id);
+        }, 0);
+      }
+      
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const value = {
+    user,
+    session,
+    tokens,
+    loading,
+    signInWithGoogle,
+    signOut,
+    updateTokens,
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};

@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Moon, Sun, Mic } from "lucide-react";
+import { Moon, Sun, Mic, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Navigation = () => {
   const [isDark, setIsDark] = useState(false);
-  const [tokens, setTokens] = useState(10000);
   const location = useLocation();
+  const { user, tokens, signInWithGoogle, signOut, loading } = useAuth();
 
   useEffect(() => {
     // Check for saved theme preference or default to light mode
@@ -17,23 +19,6 @@ export const Navigation = () => {
       setIsDark(true);
       document.documentElement.classList.add("dark");
     }
-
-    // Load tokens from localStorage
-    const savedTokens = localStorage.getItem("mockNCrackTokens");
-    if (savedTokens) {
-      setTokens(parseInt(savedTokens));
-    }
-
-    // Listen for token updates
-    const handleTokenUpdate = (event: CustomEvent) => {
-      setTokens(event.detail);
-    };
-    
-    window.addEventListener('tokensUpdated', handleTokenUpdate as EventListener);
-    
-    return () => {
-      window.removeEventListener('tokensUpdated', handleTokenUpdate as EventListener);
-    };
   }, []);
 
   const toggleTheme = () => {
@@ -107,16 +92,58 @@ export const Navigation = () => {
               <span className="font-semibold text-accent-green">{tokens.toLocaleString()}</span>
             </div>
 
-            {/* Buy Tokens Button */}
-            <Link to="/buy-tokens">
+            {/* Authentication */}
+            {user ? (
+              <div className="flex items-center space-x-3">
+                {/* User Avatar */}
+                <div className="flex items-center space-x-2">
+                  <Avatar className="w-8 h-8">
+                    <AvatarImage src={user.user_metadata?.avatar_url} alt={user.user_metadata?.name || 'User'} />
+                    <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                      {(user.user_metadata?.name || user.email || 'U').charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium text-foreground hidden sm:inline">
+                    {user.user_metadata?.name || user.email?.split('@')[0]}
+                  </span>
+                </div>
+                
+                {/* Sign Out Button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={signOut}
+                  disabled={loading}
+                  className="w-9 h-9 p-0"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span className="sr-only">Sign out</span>
+                </Button>
+              </div>
+            ) : (
               <Button 
                 variant="outline" 
                 size="sm"
-                className="border-accent-green text-accent-green hover:bg-accent-green hover:text-accent-green-foreground"
+                onClick={signInWithGoogle}
+                disabled={loading}
+                className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
               >
-                Buy Tokens
+                {loading ? 'Signing in...' : 'Sign In'}
               </Button>
-            </Link>
+            )}
+
+            {/* Buy Tokens Button - Only show when authenticated */}
+            {user && (
+              <Link to="/buy-tokens">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="border-accent-green text-accent-green hover:bg-accent-green hover:text-accent-green-foreground"
+                >
+                  Buy Tokens
+                </Button>
+              </Link>
+            )}
 
             {/* Theme Toggle */}
             <Button
