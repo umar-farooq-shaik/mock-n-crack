@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Mic, MicOff, Play, Square, Send, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 // Question banks
 const questionBanks = {
@@ -95,18 +96,13 @@ export default function InterviewSession() {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [currentAnswer, setCurrentAnswer] = useState("");
-  const [tokens, setTokens] = useState(10000);
+  const { tokens, updateTokens, user } = useAuth();
   const [sessionCompleted, setSessionCompleted] = useState(false);
 
   const recognitionRef = useRef<any>(null);
   const synthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   useEffect(() => {
-    // Load tokens from localStorage
-    const savedTokens = localStorage.getItem("mockNCrackTokens");
-    if (savedTokens) {
-      setTokens(parseInt(savedTokens));
-    }
 
     // Initialize speech recognition
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -301,13 +297,8 @@ export default function InterviewSession() {
       setIsListening(false);
     }
 
-    // Deduct token
-    const newTokens = tokens - 1;
-    setTokens(newTokens);
-    localStorage.setItem("mockNCrackTokens", newTokens.toString());
-
-    // Dispatch custom event to update navigation
-    window.dispatchEvent(new CustomEvent('tokensUpdated', { detail: newTokens }));
+    // Deduct one token and persist to DB
+    await updateTokens(-1);
 
     // Save answer
     const newAnswers = [...answers, currentAnswer.trim()];
