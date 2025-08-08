@@ -30,7 +30,7 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [tokens, setTokens] = useState(10000); // Default fallback
+  const [tokens, setTokens] = useState(0); // Default to 0 until fetched from DB
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -49,10 +49,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (data) {
         setTokens(data.token_balance);
-        // Update localStorage for backward compatibility
-        localStorage.setItem('mockNCrackTokens', data.token_balance.toString());
-        // Dispatch custom event for components listening to token updates
-        window.dispatchEvent(new CustomEvent('tokensUpdated', { detail: data.token_balance }));
       }
     } catch (error) {
       console.error('Error fetching tokens:', error);
@@ -106,8 +102,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       } else {
         setUser(null);
         setSession(null);
-        setTokens(10000); // Reset to default
-        localStorage.removeItem('mockNCrackTokens');
+        setTokens(0);
         toast({
           title: "Signed Out",
           description: "You have been successfully signed out.",
@@ -145,9 +140,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       setTokens(data);
-      localStorage.setItem('mockNCrackTokens', data.toString());
-      window.dispatchEvent(new CustomEvent('tokensUpdated', { detail: data }));
-      
       toast({
         title: "Tokens Updated",
         description: `${change > 0 ? 'Added' : 'Used'} ${Math.abs(change)} tokens. Balance: ${data}`,
@@ -170,7 +162,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             fetchUserTokens(session.user.id);
           }, 0);
         } else {
-          setTokens(10000); // Reset to default when not authenticated
+          setTokens(0); // Reset to 0 when not authenticated
         }
         
         setLoading(false);
