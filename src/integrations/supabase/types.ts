@@ -41,6 +41,42 @@ export type Database = {
         }
         Relationships: []
       }
+      token_balance_changes: {
+        Row: {
+          change_source: string | null
+          changed_by: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          new_balance: number | null
+          old_balance: number | null
+          reason: string | null
+          user_id: string | null
+        }
+        Insert: {
+          change_source?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          new_balance?: number | null
+          old_balance?: number | null
+          reason?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          change_source?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          new_balance?: number | null
+          old_balance?: number | null
+          reason?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           avatar_url: string | null
@@ -82,7 +118,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      user_tokens_view: {
+        Row: {
+          email: string | null
+          token_balance: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          email?: string | null
+          token_balance?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          email?: string | null
+          token_balance?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       reset_topic_questions: {

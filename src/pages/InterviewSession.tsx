@@ -297,8 +297,10 @@ export default function InterviewSession() {
       setIsListening(false);
     }
 
-    // Deduct one token and persist to DB
-    await updateTokens(-1);
+    // Deduct one token and persist to DB (non-technical only; technical is debited server-side)
+    if (interviewType !== "technical") {
+      await updateTokens(-1);
+    }
 
     // Save answer
     const newAnswers = [...answers, currentAnswer.trim()];

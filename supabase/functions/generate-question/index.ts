@@ -85,10 +85,38 @@ serve(async (req) => {
       throw new Error('Topic is required');
     }
 
-    // Initialize Supabase client
+    // Initialize Supabase clients and authenticate request
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing Authorization header');
+    }
+
+    // Client with service role for privileged DB operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Client with user context for auth
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    if (userError || !user) {
+      throw new Error('Unauthorized');
+    }
+
+    // Debit 1 token server-side for generating a question
+    const { data: newBalance, error: debitError } = await supabase.rpc('update_user_tokens', {
+      user_uuid: user.id,
+      token_change: -1,
+    });
+
+    if (debitError) {
+      console.error('Token debit error:', debitError);
+      throw new Error('Token debit failed');
+    }
 
     // First, try to get an unused question from the database
     const { data: storedQuestions, error: dbError } = await supabase
