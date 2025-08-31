@@ -92,7 +92,35 @@ export const Navigation = () => {
               <span className="font-semibold text-accent-green">{tokens.toLocaleString()}</span>
             </div>
 
-            {/* Authentication */}
+            {/* Buy Tokens Button - Only show when authenticated */}
+            {user && (
+              <Link to="/buy-tokens">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="border-accent-green text-accent-green hover:bg-accent-green hover:text-accent-green-foreground"
+                >
+                  Buy Tokens
+                </Button>
+              </Link>
+            )}
+
+            {/* Theme Toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleTheme}
+              className="w-9 h-9 p-0"
+            >
+              {isDark ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+              <span className="sr-only">Toggle theme</span>
+            </Button>
+
+            {/* Authentication - Now at extreme right */}
             {user ? (
               <div className="flex items-center space-x-3">
                 {/* User Avatar */}
@@ -131,34 +159,6 @@ export const Navigation = () => {
                 {loading ? 'Signing in...' : 'Sign In'}
               </Button>
             )}
-
-            {/* Buy Tokens Button - Only show when authenticated */}
-            {user && (
-              <Link to="/buy-tokens">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="border-accent-green text-accent-green hover:bg-accent-green hover:text-accent-green-foreground"
-                >
-                  Buy Tokens
-                </Button>
-              </Link>
-            )}
-
-            {/* Theme Toggle */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleTheme}
-              className="w-9 h-9 p-0"
-            >
-              {isDark ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
-              )}
-              <span className="sr-only">Toggle theme</span>
-            </Button>
           </div>
         </div>
 
