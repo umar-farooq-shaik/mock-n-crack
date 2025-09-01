@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         .maybeSingle();
 
       if (error) {
-        console.error('Error fetching user tokens:', error);
+        // Silent error handling - no console logging
         return;
       }
 
@@ -51,7 +51,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setTokens(data.token_balance);
       }
     } catch (error) {
-      console.error('Error fetching tokens:', error);
+      // Silent error handling - no console logging
     }
   };
 
@@ -77,7 +77,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         });
       }
     } catch (error) {
-      console.error('Error signing in with Google:', error);
       toast({
         title: "Sign In Error",
         description: "An unexpected error occurred. Please try again.",
@@ -109,7 +108,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         });
       }
     } catch (error) {
-      console.error('Error signing out:', error);
       toast({
         title: "Sign Out Error",
         description: "An unexpected error occurred. Please try again.",
@@ -130,7 +128,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       if (error) {
-        console.error('Error updating tokens:', error);
         toast({
           title: "Token Update Error",
           description: "Failed to update tokens. Please try again.",
@@ -145,7 +142,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         description: `${change > 0 ? 'Added' : 'Used'} ${Math.abs(change)} tokens. Balance: ${data}`,
       });
     } catch (error) {
-      console.error('Error updating tokens:', error);
+      toast({
+        title: "Token Update Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 

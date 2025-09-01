@@ -22,3 +22,23 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Security and Environment Files
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+
+# Supabase
+.supabase/
+
+# Temporary SQL files (security fixes)
+fix_token_balance_*.sql
+secure_token_balance_fix.sql
+comprehensive_security_fix.sql
+
+# Database dumps and backups
+*.sql
+*.dump
+*.backup

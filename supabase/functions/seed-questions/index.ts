@@ -3,8 +3,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://iyljwzhuvcsmcpstbyqq.supabase.co,https://lovable.dev,http://localhost:8080,http://localhost:3000',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
 
 serve(async (req) => {
@@ -38,7 +40,6 @@ serve(async (req) => {
       { topic: 'javascript', question: 'Explain prototypal inheritance in JavaScript.' },
       { topic: 'javascript', question: 'What are promises and how do they work?' },
       { topic: 'javascript', question: 'What is the this keyword in JavaScript?' },
-      { topic: 'javascript', question: 'Explain hoisting in JavaScript.' },
       
       // Python Questions
       { topic: 'python', question: 'What are Python decorators and how do you use them?' },
@@ -46,23 +47,13 @@ serve(async (req) => {
       { topic: 'python', question: 'What is the Global Interpreter Lock (GIL) in Python?' },
       { topic: 'python', question: 'How do you handle exceptions in Python?' },
       { topic: 'python', question: 'What are Python generators and when would you use them?' },
-      { topic: 'python', question: 'Explain list comprehensions in Python.' },
-      { topic: 'python', question: 'What is the difference between __str__ and __repr__ methods?' },
-      { topic: 'python', question: 'How does memory management work in Python?' },
-      
-      // Node.js Questions
-      { topic: 'nodejs', question: 'What is the event loop in Node.js?' },
-      { topic: 'nodejs', question: 'Explain the difference between blocking and non-blocking I/O.' },
-      { topic: 'nodejs', question: 'What are streams in Node.js?' },
-      { topic: 'nodejs', question: 'How do you handle errors in Node.js?' },
-      { topic: 'nodejs', question: 'What is the purpose of package.json in Node.js?' },
       
       // Database Questions
-      { topic: 'sql', question: 'What is database normalization and why is it important?' },
-      { topic: 'sql', question: 'Explain the difference between INNER JOIN and LEFT JOIN.' },
-      { topic: 'sql', question: 'What are database indexes and how do they improve performance?' },
-      { topic: 'sql', question: 'What is a database transaction?' },
-      { topic: 'sql', question: 'Explain ACID properties in databases.' },
+      { topic: 'database', question: 'What is normalization in database design?' },
+      { topic: 'database', question: 'Explain the difference between SQL and NoSQL databases.' },
+      { topic: 'database', question: 'What are database indexes and when should you use them?' },
+      { topic: 'database', question: 'What is ACID in database transactions?' },
+      { topic: 'database', question: 'How do you handle database deadlocks?' },
       
       // System Design Questions
       { topic: 'system design', question: 'How would you design a URL shortening service like bit.ly?' },
@@ -78,7 +69,7 @@ serve(async (req) => {
       .insert(sampleQuestions);
 
     if (error) {
-      console.error('Error inserting questions:', error);
+      // Silent error handling - no console logging
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -92,7 +83,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Error in seed-questions function:', error);
+    // Silent error handling - no console logging
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

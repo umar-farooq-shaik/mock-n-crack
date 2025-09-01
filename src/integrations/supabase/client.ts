@@ -8,9 +8,36 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+// Custom storage implementation for better security
+const secureStorage = {
+  getItem: (key: string): string | null => {
+    try {
+      // Use sessionStorage for auth tokens (more secure)
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    try {
+      // Use sessionStorage for auth tokens (more secure)
+      sessionStorage.setItem(key, value);
+    } catch {
+      // Silent fail if storage is not available
+    }
+  },
+  removeItem: (key: string): void => {
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // Silent fail if storage is not available
+    }
+  }
+};
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: localStorage,
+    storage: secureStorage,
     persistSession: true,
     autoRefreshToken: true,
   }

@@ -3,8 +3,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://iyljwzhuvcsmcpstbyqq.supabase.co,https://lovable.dev,http://localhost:8080,http://localhost:3000',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
 
 // Gemini API keys for rotation
@@ -64,7 +66,7 @@ Examples:
       }
       throw new Error('No content generated');
     } catch (err) {
-      console.warn(`Gemini key ${currentKeyIndex + 1} failed:`, err.message);
+      // Silent error handling - no console logging
       currentKeyIndex = (currentKeyIndex + 1) % GEMINI_KEYS.length;
     }
   }
@@ -107,16 +109,23 @@ serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    // Debit 1 token server-side for generating a question
-    const { data: newBalance, error: debitError } = await supabase.rpc('update_user_tokens', {
-      user_uuid: user.id,
-      token_change: -1,
-    });
+    // Check user's current token balance BEFORE deducting
+    const { data: userData, error: userError2 } = await supabase
+      .from('users')
+      .select('token_balance')
+      .eq('user_id', user.id)
+      .single();
 
-    if (debitError) {
-      console.error('Token debit error:', debitError);
-      throw new Error('Token debit failed');
+    if (userError2 || !userData) {
+      throw new Error('User not found');
     }
+
+    if (userData.token_balance < 1) {
+      throw new Error('Insufficient tokens. You need at least 1 token to generate a question.');
+    }
+
+    let question: string;
+    let questionGenerated = false;
 
     // First, try to get an unused question from the database
     const { data: storedQuestions, error: dbError } = await supabase
@@ -127,71 +136,113 @@ serve(async (req) => {
       .limit(1);
 
     if (dbError) {
-      console.error('Database error:', dbError);
+      // Silent error handling - no console logging
     }
 
-    let question: string;
-
     if (storedQuestions && storedQuestions.length > 0) {
-      // Use stored question and mark it as used
-      const selectedQuestion = storedQuestions[0];
-      question = selectedQuestion.question;
-
-      // Mark question as used
+      // Mark the question as used
       await supabase
         .from('technical_questions')
         .update({ used: true })
-        .eq('id', selectedQuestion.id);
+        .eq('id', storedQuestions[0].id);
 
-      console.log(`Using stored question for topic: ${topic}`);
+      question = storedQuestions[0].question;
+      questionGenerated = true;
+      // Silent success - no console logging
     } else {
-      // Check if we need to reset questions for this topic
-      const { data: allTopicQuestions } = await supabase
-        .from('technical_questions')
-        .select('id')
-        .eq('topic', topic);
-
-      if (allTopicQuestions && allTopicQuestions.length > 0) {
-        // Topic exists but all questions are used - reset them
-        await supabase.rpc('reset_topic_questions', { topic_name: topic });
+      // No stored questions available, generate with Gemini
+      try {
+        question = await generateQuestionWithGemini(topic);
         
-        // Try again to get a question
-        const { data: resetQuestions } = await supabase
+        // Store the generated question for future use
+        await supabase
           .from('technical_questions')
-          .select('*')
-          .eq('topic', topic)
-          .eq('used', false)
-          .limit(1);
+          .insert({
+            topic,
+            question,
+            used: true
+          });
+        
+        questionGenerated = true;
+        // Silent success - no console logging
+      } catch (geminiError) {
+        // If Gemini fails, try to reset and reuse existing questions
+        try {
+          const { data: resetResult, error: resetError } = await supabase.rpc('reset_topic_questions', {
+            topic_name: topic
+          });
 
-        if (resetQuestions && resetQuestions.length > 0) {
-          const selectedQuestion = resetQuestions[0];
-          question = selectedQuestion.question;
+          if (!resetError && resetResult > 0) {
+            // Get a reset question
+            const { data: resetQuestions } = await supabase
+              .from('technical_questions')
+              .eq('topic', topic)
+              .eq('used', false)
+              .limit(1);
 
+            if (resetQuestions && resetQuestions.length > 0) {
+              await supabase
+                .from('technical_questions')
+                .update({ used: true })
+                .eq('id', resetQuestions[0].id);
+
+              question = resetQuestions[0].question;
+              questionGenerated = true;
+              // Silent success - no console logging
+            } else {
+              throw new Error('No questions available after reset');
+            }
+          } else {
+            throw new Error('Failed to reset questions');
+          }
+        } catch (resetError) {
+          // Final fallback: generate a new question with Gemini
+          question = await generateQuestionWithGemini(topic);
+          
+          // Store for future use
           await supabase
             .from('technical_questions')
-            .update({ used: true })
-            .eq('id', selectedQuestion.id);
-
-          console.log(`Using reset question for topic: ${topic}`);
-        } else {
-          // Fallback to Gemini
-          question = await generateQuestionWithGemini(topic);
-          console.log(`Generated question with Gemini for topic: ${topic}`);
+            .insert({
+              topic,
+              question,
+              used: true
+            });
+          
+          questionGenerated = true;
+          // Silent success - no console logging
         }
-      } else {
-        // No questions exist for this topic - use Gemini
-        question = await generateQuestionWithGemini(topic);
-        console.log(`Generated question with Gemini for new topic: ${topic}`);
       }
     }
 
-    return new Response(JSON.stringify({ question }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    // Only deduct tokens AFTER successfully generating/getting a question
+    if (questionGenerated && question) {
+      const { data: newBalance, error: debitError } = await supabase.rpc('update_user_tokens', {
+        user_uuid: user.id,
+        token_change: -1,
+      });
+
+      if (debitError) {
+        // Silent error handling - no console logging
+        throw new Error('Token debit failed');
+      }
+
+      // Return the question with updated token balance
+      return new Response(JSON.stringify({ 
+        question,
+        newBalance,
+        tokensUsed: 1
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    } else {
+      throw new Error('Failed to generate question');
+    }
 
   } catch (error) {
-    console.error('Error in generate-question function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    // Silent error handling - no console logging
+    return new Response(JSON.stringify({ 
+      error: error.message || 'Internal server error' 
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

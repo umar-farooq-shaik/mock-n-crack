@@ -125,7 +125,7 @@ export default function InterviewSession() {
       };
 
       recognitionRef.current.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
+        // Silent error handling - no console logging
         setIsListening(false);
         toast({
           title: "Speech Recognition Error",
@@ -165,15 +165,23 @@ export default function InterviewSession() {
       });
 
       if (error) {
-        console.error('Error calling generate-question function:', error);
+        // Silent error handling - no console logging
         throw new Error('Failed to generate question');
       }
 
+      // Update tokens in the UI with the new balance from the server
+      if (data && data.newBalance !== undefined) {
+        // Update the local token state to match server
+        const tokenChange = data.newBalance - tokens;
+        if (tokenChange !== 0) {
+          updateTokens(tokenChange);
+        }
+      }
+      
       return data.question;
     } catch (error) {
-      console.error('Error getting technical question:', error);
-      // Fallback to a generic question
-      return `Explain a key concept related to ${topic}.`;
+      // Silent error handling - no console logging
+      throw new Error('Failed to generate question');
     }
   };
 
