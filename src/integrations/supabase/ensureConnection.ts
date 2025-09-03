@@ -19,10 +19,7 @@ export async function ensureSupabaseConnected(options: EnsureConnectionOptions =
   const { timeoutMs = 5000 } = options;
 
   const ping = async () => {
-    const { error } = await supabase
-      .from('technical_questions')
-      .select('id', { head: true, count: 'exact' })
-      .limit(1);
+    const { error } = await supabase.auth.getSession();
 
     if (error) {
       return false;
