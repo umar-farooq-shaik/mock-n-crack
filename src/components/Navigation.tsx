@@ -128,12 +128,9 @@ export const Navigation = () => {
                   <Avatar className="w-8 h-8">
                     <AvatarImage src={user.user_metadata?.avatar_url} alt={user.user_metadata?.name || 'User'} />
                     <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                      {(user.user_metadata?.name || user.email || 'U').charAt(0).toUpperCase()}
+                      {(user.user_matadata?.name || user.email || 'U').charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="text-sm font-medium text-foreground hidden sm:inline">
-                    {user.user_metadata?.name || user.email?.split('@')[0]}
-                  </span>
                 </div>
                 
                 {/* Sign Out Button */}
