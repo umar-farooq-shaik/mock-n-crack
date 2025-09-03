@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Mic, MicOff, Play, Square, Send, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -70,16 +69,15 @@ export default function InterviewSession() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, tokens, updateTokens, signInWithGoogle } = useAuth();
 
   const [interviewType, setInterviewType] = useState(searchParams.get("type") || "technical");
   const [topic, setTopic] = useState("");
 
-  // Update interview type when URL parameters change
   useEffect(() => {
     const typeParam = searchParams.get("type");
     if (typeParam && ["technical", "hr", "managerial"].includes(typeParam)) {
       setInterviewType(typeParam);
-      // Reset session if type changes
       setSessionStarted(false);
       setSessionCompleted(false);
       setCurrentQuestion(0);
@@ -90,21 +88,18 @@ export default function InterviewSession() {
   }, [searchParams]);
 
   const [sessionStarted, setSessionStarted] = useState(false);
+  const [sessionCompleted, setSessionCompleted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [questions, setQuestions] = useState<string[]>([]);
   const [answers, setAnswers] = useState<string[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [currentAnswer, setCurrentAnswer] = useState("");
-  const { tokens, updateTokens, user } = useAuth();
-  const [sessionCompleted, setSessionCompleted] = useState(false);
 
   const recognitionRef = useRef<any>(null);
   const synthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   useEffect(() => {
-
-    // Initialize speech recognition
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
@@ -125,13 +120,8 @@ export default function InterviewSession() {
       };
 
       recognitionRef.current.onerror = (event) => {
-        // Silent error handling - no console logging
         setIsListening(false);
-        toast({
-          title: "Speech Recognition Error",
-          description: "Please try again or check your microphone permissions.",
-          variant: "destructive"
-        });
+        toast({ title: "Speech Recognition Error", description: "Please try again or check microphone permissions.", variant: "destructive" });
       };
 
       recognitionRef.current.onend = () => {
@@ -142,18 +132,13 @@ export default function InterviewSession() {
 
   const generateQuestions = () => {
     let selectedQuestions: string[] = [];
-
     if (interviewType === "hr") {
       selectedQuestions = [...questionBanks.hr];
     } else if (interviewType === "managerial") {
       selectedQuestions = [...questionBanks.managerial];
-    } else if (interviewType === "technical") {
-      // For technical questions, we'll fetch them dynamically during the session
-      // Return empty array for now, questions will be generated one by one
+    } else {
       return [];
     }
-
-    // Shuffle and take 5 questions for HR/Managerial
     const shuffled = selectedQuestions.sort(() => 0.5 - Math.random());
     return shuffled.slice(0, 5);
   };
@@ -163,24 +148,15 @@ export default function InterviewSession() {
       const { data, error } = await supabase.functions.invoke('generate-question', {
         body: { topic }
       });
-
-      if (error) {
-        // Silent error handling - no console logging
-        throw new Error('Failed to generate question');
-      }
-
-      // Update tokens in the UI with the new balance from the server
+      if (error) throw new Error('Failed to generate question');
       if (data && data.newBalance !== undefined) {
-        // Update the local token state to match server
         const tokenChange = data.newBalance - tokens;
         if (tokenChange !== 0) {
           updateTokens(tokenChange);
         }
       }
-      
       return data.question;
     } catch (error) {
-      // Silent error handling - no console logging
       throw new Error('Failed to generate question');
     }
   };
@@ -192,45 +168,20 @@ export default function InterviewSession() {
       utterance.rate = 0.9;
       utterance.pitch = 1;
       utterance.volume = 1;
-
-      // Get female voice
       const voices = speechSynthesis.getVoices();
-      const femaleVoice = voices.find(voice =>
-        voice.name.includes('Female') ||
-        voice.name.includes('Samantha') ||
-        voice.name.includes('Victoria') ||
-        voice.name.toLowerCase().includes('female')
-      );
-
+      const femaleVoice = voices.find(voice => voice.name.includes('Female') || voice.name.includes('Samantha') || voice.name.includes('Victoria') || voice.name.toLowerCase().includes('female'));
       if (femaleVoice) {
         utterance.voice = femaleVoice;
       }
-
-      utterance.onend = () => {
-        setIsSpeaking(false);
-      };
-
+      utterance.onend = () => setIsSpeaking(false);
       synthesisRef.current = utterance;
       speechSynthesis.speak(utterance);
     }
   };
 
   const startSession = async () => {
-    if (tokens < 5) {
-      toast({
-        title: "Insufficient Tokens",
-        description: "You need at least 5 tokens to start a session.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     if (interviewType === "technical" && !topic.trim()) {
-      toast({
-        title: "Topic Required",
-        description: "Please enter a topic for the technical interview.",
-        variant: "destructive"
-      });
+      toast({ title: "Topic Required", description: "Please enter a topic for the technical interview.", variant: "destructive" });
       return;
     }
 
@@ -239,46 +190,43 @@ export default function InterviewSession() {
     setAnswers([]);
 
     if (interviewType === "technical") {
-      // For technical interviews, generate questions dynamically
-      setQuestions([]); // Start with empty array
-
-      // Get first question
+      setQuestions([]);
       try {
         const firstQuestion = await getNextTechnicalQuestion();
         setQuestions([firstQuestion]);
-
-        setTimeout(() => {
-          speakQuestion(firstQuestion);
-        }, 1000);
+        setTimeout(() => speakQuestion(firstQuestion), 1000);
       } catch (error) {
-        toast({
-          title: "Error Loading Question",
-          description: "Failed to load the first question. Please try again.",
-          variant: "destructive"
-        });
+        toast({ title: "Error Loading Question", description: "Failed to load the first question. Please try again.", variant: "destructive" });
         setSessionStarted(false);
       }
     } else {
-      // For HR/Managerial, use pre-generated questions
       const sessionQuestions = generateQuestions();
       setQuestions(sessionQuestions);
-
-      setTimeout(() => {
-        speakQuestion(sessionQuestions[0]);
-      }, 1000);
+      setTimeout(() => speakQuestion(sessionQuestions[0]), 1000);
     }
   };
 
+  const handleStartInterview = () => {
+    if (!user) {
+      signInWithGoogle();
+    } else {
+      if (tokens < 5) {
+        toast({
+          title: "Insufficient Tokens",
+          description: "You need at least 5 tokens to start a session.",
+          variant: "destructive"
+        });
+        return;
+      }
+      startSession();
+    }
+  }
+
   const toggleListening = () => {
     if (!recognitionRef.current) {
-      toast({
-        title: "Speech Recognition Not Available",
-        description: "Your browser doesn't support speech recognition.",
-        variant: "destructive"
-      });
+      toast({ title: "Speech Recognition Not Available", description: "Your browser doesn't support speech recognition.", variant: "destructive" });
       return;
     }
-
     if (isListening) {
       recognitionRef.current.stop();
       setIsListening(false);
@@ -291,35 +239,22 @@ export default function InterviewSession() {
 
   const submitAnswer = async () => {
     if (!currentAnswer.trim()) {
-      toast({
-        title: "No Answer Recorded",
-        description: "Please record an answer before submitting.",
-        variant: "destructive"
-      });
+      toast({ title: "No Answer Recorded", description: "Please record an answer before submitting.", variant: "destructive" });
       return;
     }
-
-    // Stop recording if currently listening
     if (isListening && recognitionRef.current) {
       recognitionRef.current.stop();
       setIsListening(false);
     }
-
-    // Deduct one token and persist to DB (non-technical only; technical is debited server-side)
     if (interviewType !== "technical") {
       await updateTokens(-1);
     }
-
-    // Save answer
     const newAnswers = [...answers, currentAnswer.trim()];
     setAnswers(newAnswers);
     setCurrentAnswer("");
 
-    // Check if session completed
     if (currentQuestion >= 4) {
       setSessionCompleted(true);
-
-      // Save session data
       const sessionData = {
         interview_type: interviewType,
         topic: interviewType === "technical" ? topic : undefined,
@@ -328,41 +263,23 @@ export default function InterviewSession() {
         status: "completed",
         date: new Date().toISOString()
       };
-
       const savedSessions = JSON.parse(localStorage.getItem("mockNCrackSessions") || "[]");
       savedSessions.push(sessionData);
       localStorage.setItem("mockNCrackSessions", JSON.stringify(savedSessions));
-
-      toast({
-        title: "Session Completed!",
-        description: "Your interview session has been saved.",
-      });
+      toast({ title: "Session Completed!", description: "Your interview session has been saved." });
     } else {
-      // Move to next question
       const nextQuestion = currentQuestion + 1;
       setCurrentQuestion(nextQuestion);
-
       if (interviewType === "technical") {
-        // For technical interviews, get the next question dynamically
         try {
           const nextQuestionText = await getNextTechnicalQuestion();
           setQuestions(prev => [...prev, nextQuestionText]);
-
-          setTimeout(() => {
-            speakQuestion(nextQuestionText);
-          }, 1000);
+          setTimeout(() => speakQuestion(nextQuestionText), 1000);
         } catch (error) {
-          toast({
-            title: "Error Loading Next Question",
-            description: "Failed to load the next question. Please try again.",
-            variant: "destructive"
-          });
+          toast({ title: "Error Loading Next Question", description: "Failed to load the next question. Please try again.", variant: "destructive" });
         }
       } else {
-        // For HR/Managerial, use the pre-loaded questions
-        setTimeout(() => {
-          speakQuestion(questions[nextQuestion]);
-        }, 1000);
+        setTimeout(() => speakQuestion(questions[nextQuestion]), 1000);
       }
     }
   };
@@ -393,7 +310,6 @@ export default function InterviewSession() {
                   5 Questions Answered
                 </Badge>
               </div>
-
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Your Answers:</h3>
                 {answers.map((answer, index) => (
@@ -405,7 +321,6 @@ export default function InterviewSession() {
                   </div>
                 ))}
               </div>
-
               <div className="flex gap-4 justify-center">
                 <Button onClick={restartSession} variant="outline">
                   <RotateCcw className="w-4 h-4 mr-2" />
@@ -431,7 +346,6 @@ export default function InterviewSession() {
               <CardTitle className="text-2xl">Start Interview Session</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Interview Type Selection */}
               <div className="space-y-2">
                 <Label htmlFor="interview-type">Interview Type</Label>
                 <Select value={interviewType} onValueChange={setInterviewType}>
@@ -446,7 +360,6 @@ export default function InterviewSession() {
                 </Select>
               </div>
 
-              {/* Topic Input for Technical */}
               {interviewType === "technical" && (
                 <div className="space-y-2">
                   <Label htmlFor="topic">Enter Topic for Technical Interview</Label>
@@ -459,24 +372,23 @@ export default function InterviewSession() {
                 </div>
               )}
 
-
-              {/* Token Info */}
-              <div className="bg-muted p-4 rounded-lg">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium">Available Tokens:</span>
-                  <Badge variant={tokens >= 5 ? "default" : "destructive"}>
-                    {tokens.toLocaleString()}
-                  </Badge>
+              {user && (
+                <div className="bg-muted p-4 rounded-lg">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-medium">Available Tokens:</span>
+                    <Badge variant={tokens < 5 ? "destructive" : "default"}>
+                      {tokens.toLocaleString()}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-foreground/60">
+                    This session will use 5 tokens (1 per question)
+                  </p>
                 </div>
-                <p className="text-sm text-foreground/60">
-                  This session will use 5 tokens (1 per question)
-                </p>
-              </div>
+              )}
 
-              {/* Start Button */}
               <Button
-                onClick={startSession}
-                disabled={tokens < 5}
+                onClick={handleStartInterview}
+                disabled={user && tokens < 5}
                 className={`w-full ${interviewType === "managerial"
                   ? "bg-accent-orange hover:bg-accent-orange/90 text-accent-orange-foreground"
                   : ""
@@ -490,7 +402,6 @@ export default function InterviewSession() {
           </Card>
         ) : (
           <div className="space-y-6">
-            {/* Session Progress */}
             <Card>
               <CardContent className="pt-6">
                 <div className="flex justify-between items-center mb-4">
@@ -506,8 +417,6 @@ export default function InterviewSession() {
                     Question {currentQuestion + 1} of 5
                   </Badge>
                 </div>
-
-                {/* Progress Bar */}
                 <div className="w-full bg-muted rounded-full h-2">
                   <div
                     className="bg-primary h-2 rounded-full transition-all duration-300"
@@ -517,7 +426,6 @@ export default function InterviewSession() {
               </CardContent>
             </Card>
 
-            {/* Current Question */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Current Question</CardTitle>
@@ -526,7 +434,6 @@ export default function InterviewSession() {
                 <div className="bg-muted p-4 rounded-lg mb-4">
                   <p className="text-lg">{questions[currentQuestion]}</p>
                 </div>
-
                 {isSpeaking && (
                   <div className="flex items-center text-primary mb-4">
                     <div className="animate-pulse w-2 h-2 bg-primary rounded-full mr-2" />
@@ -536,7 +443,6 @@ export default function InterviewSession() {
               </CardContent>
             </Card>
 
-            {/* Voice Recording */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Your Answer</CardTitle>
@@ -549,7 +455,6 @@ export default function InterviewSession() {
                     </span>
                   )}
                 </div>
-
                 <div className="flex gap-4">
                   <Button
                     onClick={toggleListening}
@@ -569,7 +474,6 @@ export default function InterviewSession() {
                       </>
                     )}
                   </Button>
-
                   <Button
                     onClick={submitAnswer}
                     disabled={!currentAnswer.trim()}
@@ -582,7 +486,6 @@ export default function InterviewSession() {
                 </div>
               </CardContent>
             </Card>
-
           </div>
         )}
       </div>

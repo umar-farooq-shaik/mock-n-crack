@@ -1,11 +1,23 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Mic, Users, Code, Briefcase, ArrowRight, CheckCircle, Star, Clock } from "lucide-react";
 import heroImage from "@/assets/hero-image.jpg";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Home() {
+  const { user, signInWithGoogle } = useAuth();
+  const navigate = useNavigate();
+
+  const handleInterviewStart = (type: string) => {
+    if (user) {
+      navigate(`/interview?type=${type}`);
+    } else {
+      signInWithGoogle();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
@@ -106,11 +118,9 @@ export default function Home() {
                 </div>
               </div>
               
-              <Link to="/interview?type=technical">
-                <Button className="w-full rounded-xl">
-                  Start Technical Interview
-                </Button>
-              </Link>
+              <Button onClick={() => handleInterviewStart('technical')} className="w-full rounded-xl">
+                Start Technical Interview
+              </Button>
             </CardContent>
           </Card>
 
@@ -141,13 +151,9 @@ export default function Home() {
                 </div>
               </div>
               
-              <Link to="/interview?type=hr">
-                <Button 
-                  className="w-full rounded-xl bg-accent-green hover:bg-accent-green/90 text-accent-green-foreground"
-                >
-                  Start HR Interview
-                </Button>
-              </Link>
+              <Button onClick={() => handleInterviewStart('hr')} className="w-full rounded-xl bg-accent-green hover:bg-accent-green/90 text-accent-green-foreground">
+                Start HR Interview
+              </Button>
             </CardContent>
           </Card>
 
@@ -178,14 +184,9 @@ export default function Home() {
                 </div>
               </div>
               
-              <Link to="/interview?type=managerial">
-                <Button 
-                  variant="outline" 
-                  className="w-full rounded-xl bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
-                >
-                  Start Managerial Interview
-                </Button>
-              </Link>
+              <Button onClick={() => handleInterviewStart('managerial')} variant="outline" className="w-full rounded-xl bg-orange-500 text-white border-orange-500 hover:bg-orange-600">
+                Start Managerial Interview
+              </Button>
             </CardContent>
           </Card>
         </div>

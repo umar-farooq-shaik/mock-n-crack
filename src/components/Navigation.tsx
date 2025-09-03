@@ -87,10 +87,12 @@ export const Navigation = () => {
           {/* Right side */}
           <div className="flex items-center space-x-4">
             {/* Token Display */}
-            <div className="hidden sm:flex items-center space-x-2 text-sm">
-              <span className="text-foreground/60">Tokens:</span>
-              <span className="font-semibold text-accent-green">{tokens.toLocaleString()}</span>
-            </div>
+            {user && (
+              <div className="hidden sm:flex items-center space-x-2 text-sm">
+                <span className="text-foreground/60">Tokens:</span>
+                <span className="font-semibold text-accent-green">{tokens.toLocaleString()}</span>
+              </div>
+            )}
 
             {/* Buy Tokens Button - Only show when authenticated */}
             {user && (
@@ -128,7 +130,7 @@ export const Navigation = () => {
                   <Avatar className="w-8 h-8">
                     <AvatarImage src={user.user_metadata?.avatar_url} alt={user.user_metadata?.name || 'User'} />
                     <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                      {(user.user_matadata?.name || user.email || 'U').charAt(0).toUpperCase()}
+                      {(user.user_metadata?.name || user.email || 'U').charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                 </div>
@@ -196,10 +198,12 @@ export const Navigation = () => {
             </Link>
           </div>
           
-          <div className="flex items-center justify-center space-x-2 text-sm bg-muted/50 rounded-lg py-2">
-            <span className="text-foreground/60">Tokens:</span>
-            <span className="font-semibold text-accent-green">{tokens.toLocaleString()}</span>
-          </div>
+          {user && (
+            <div className="flex items-center justify-center space-x-2 text-sm bg-muted/50 rounded-lg py-2">
+              <span className="text-foreground/60">Tokens:</span>
+              <span className="font-semibold text-accent-green">{tokens.toLocaleString()}</span>
+            </div>
+          )}
         </div>
       </div>
     </nav>
