@@ -82,9 +82,75 @@ serve(async (req) => {
 
   try {
     const { topic } = await req.json();
-    
-    if (!topic) {
-      throw new Error('Topic is required');
+
+    // Input validation for topic
+    if (!topic || typeof topic !== 'string') {
+      console.error('Invalid topic parameter:', topic);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Topic is required and must be a string',
+          code: 'INVALID_INPUT'
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    // Sanitize and validate topic length
+    const sanitizedTopic = topic.trim();
+    if (sanitizedTopic.length === 0) {
+      console.error('Empty topic parameter');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Topic cannot be empty',
+          code: 'INVALID_INPUT'
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    if (sanitizedTopic.length > 200) {
+      console.error('Topic too long:', sanitizedTopic.length);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Topic must be less than 200 characters',
+          code: 'INVALID_INPUT'
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    // Check for malicious patterns (basic prompt injection prevention)
+    const suspiciousPatterns = [
+      /ignore\s+(previous|all)\s+instructions/i,
+      /system\s*:/i,
+      /\[INST\]/i,
+      /<\|.*?\|>/,
+      /###\s*System/i
+    ];
+
+    for (const pattern of suspiciousPatterns) {
+      if (pattern.test(sanitizedTopic)) {
+        console.error('Suspicious input detected:', sanitizedTopic);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Invalid topic format',
+            code: 'INVALID_INPUT'
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
     }
 
     // Initialize Supabase clients and authenticate request
@@ -131,7 +197,7 @@ serve(async (req) => {
     const { data: storedQuestions, error: dbError } = await supabase
       .from('technical_questions')
       .select('*')
-      .eq('topic', topic)
+      .eq('topic', sanitizedTopic)
       .eq('used', false)
       .limit(1);
 
@@ -152,13 +218,13 @@ serve(async (req) => {
     } else {
       // No stored questions available, generate with Gemini
       try {
-        question = await generateQuestionWithGemini(topic);
+        question = await generateQuestionWithGemini(sanitizedTopic);
         
         // Store the generated question for future use
         await supabase
           .from('technical_questions')
           .insert({
-            topic,
+            topic: sanitizedTopic,
             question,
             used: true
           });
@@ -169,14 +235,14 @@ serve(async (req) => {
         // If Gemini fails, try to reset and reuse existing questions
         try {
           const { data: resetResult, error: resetError } = await supabase.rpc('reset_topic_questions', {
-            topic_name: topic
+            topic_name: sanitizedTopic
           });
 
           if (!resetError && resetResult > 0) {
             // Get a reset question
             const { data: resetQuestions } = await supabase
               .from('technical_questions')
-              .eq('topic', topic)
+              .eq('topic', sanitizedTopic)
               .eq('used', false)
               .limit(1);
 
@@ -197,13 +263,13 @@ serve(async (req) => {
           }
         } catch (resetError) {
           // Final fallback: generate a new question with Gemini
-          question = await generateQuestionWithGemini(topic);
+          question = await generateQuestionWithGemini(sanitizedTopic);
           
           // Store for future use
           await supabase
             .from('technical_questions')
             .insert({
-              topic,
+              topic: sanitizedTopic,
               question,
               used: true
             });

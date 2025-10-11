@@ -255,18 +255,33 @@ export default function InterviewSession() {
 
     if (currentQuestion >= 4) {
       setSessionCompleted(true);
-      const sessionData = {
-        interview_type: interviewType,
-        topic: interviewType === "technical" ? topic : undefined,
-        questions,
-        answers: newAnswers,
-        status: "completed",
-        date: new Date().toISOString()
-      };
-      const savedSessions = JSON.parse(localStorage.getItem("mockNCrackSessions") || "[]");
-      savedSessions.push(sessionData);
-      localStorage.setItem("mockNCrackSessions", JSON.stringify(savedSessions));
-      toast({ title: "Session Completed!", description: "Your interview session has been saved." });
+      
+      // Save session to database instead of localStorage
+      if (user) {
+        try {
+          await supabase.from('interview_sessions').insert({
+            user_id: user.id,
+            interview_type: interviewType,
+            topic: interviewType === "technical" ? topic : null,
+            questions: questions,
+            answers: newAnswers,
+            status: "completed",
+            completed_at: new Date().toISOString()
+          });
+          
+          toast({ 
+            title: "Session Completed!", 
+            description: "Your interview session has been saved securely." 
+          });
+        } catch (error) {
+          console.error('Failed to save session:', error);
+          toast({ 
+            title: "Session Completed", 
+            description: "Note: Session could not be saved to your account.",
+            variant: "destructive"
+          });
+        }
+      }
     } else {
       const nextQuestion = currentQuestion + 1;
       setCurrentQuestion(nextQuestion);
