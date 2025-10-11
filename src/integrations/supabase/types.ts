@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.12 (cd3cf9e)"
@@ -118,35 +118,27 @@ export type Database = {
       }
     }
     Views: {
-      user_tokens_view: {
-        Row: {
-          email: string | null
-          token_balance: number | null
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          email?: string | null
-          token_balance?: number | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          email?: string | null
-          token_balance?: number | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       reset_topic_questions: {
         Args: { topic_name: string }
         Returns: number
       }
+      update_token_balance_bypass_rls: {
+        Args: { new_balance: number; user_uuid: string }
+        Returns: number
+      }
+      update_token_balance_direct: {
+        Args: { new_balance: number; target_user_id: string }
+        Returns: number
+      }
+      update_token_balance_secure: {
+        Args: { new_balance: number; user_uuid: string }
+        Returns: number
+      }
       update_user_tokens: {
-        Args: { user_uuid: string; token_change: number }
+        Args: { token_change: number; user_uuid: string }
         Returns: number
       }
     }
