@@ -21,7 +21,7 @@ interface EnvironmentConfig {
 // Environment detection
 const isDevelopment = import.meta.env.DEV;
 const isProduction = import.meta.env.PROD;
-const isTest = import.meta.env.MODE === 'test';
+const isTestMode = import.meta.env.MODE === 'test';
 
 // Configuration based on environment
 export const config: EnvironmentConfig = {
