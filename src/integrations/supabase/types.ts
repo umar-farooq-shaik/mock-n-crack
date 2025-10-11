@@ -125,18 +125,6 @@ export type Database = {
         Args: { topic_name: string }
         Returns: number
       }
-      update_token_balance_bypass_rls: {
-        Args: { new_balance: number; user_uuid: string }
-        Returns: number
-      }
-      update_token_balance_direct: {
-        Args: { new_balance: number; target_user_id: string }
-        Returns: number
-      }
-      update_token_balance_secure: {
-        Args: { new_balance: number; user_uuid: string }
-        Returns: number
-      }
       update_user_tokens: {
         Args: { token_change: number; user_uuid: string }
         Returns: number
