@@ -119,7 +119,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const updateTokens = async (change: number) => {
-    if (!user) return;
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
 
     try {
       const { data, error } = await supabase.rpc('update_user_tokens', {
@@ -128,12 +130,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       if (error) {
+        console.error("Token update RPC error:", error);
         toast({
           title: "Token Update Error",
-          description: "Failed to update tokens. Please try again.",
+          description: error.message || "Failed to update tokens. Please try again.",
           variant: "destructive",
         });
-        return;
+        throw error;
       }
 
       setTokens(data);
@@ -142,11 +145,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         description: `${change > 0 ? 'Added' : 'Used'} ${Math.abs(change)} tokens. Balance: ${data}`,
       });
     } catch (error) {
+      console.error("Token update error:", error);
       toast({
         title: "Token Update Error",
-        description: "An unexpected error occurred. Please try again.",
+        description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
+      throw error;
     }
   };
 

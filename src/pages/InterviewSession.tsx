@@ -185,6 +185,11 @@ export default function InterviewSession() {
       return;
     }
 
+    if (!user) {
+      toast({ title: "Authentication Required", description: "Please sign in to start an interview.", variant: "destructive" });
+      return;
+    }
+
     setSessionStarted(true);
     setCurrentQuestion(0);
     setAnswers([]);
@@ -202,9 +207,15 @@ export default function InterviewSession() {
     } else {
       const sessionQuestions = generateQuestions();
       setQuestions(sessionQuestions);
+      
       // Deduct token before showing first question
-      await updateTokens(-1);
-      setTimeout(() => speakQuestion(sessionQuestions[0]), 1000);
+      try {
+        await updateTokens(-1);
+        setTimeout(() => speakQuestion(sessionQuestions[0]), 1000);
+      } catch (error) {
+        toast({ title: "Token Update Failed", description: "Unable to start session. Please check your token balance.", variant: "destructive" });
+        setSessionStarted(false);
+      }
     }
   };
 
@@ -294,8 +305,12 @@ export default function InterviewSession() {
         }
       } else {
         // Deduct token before showing next question
-        await updateTokens(-1);
-        setTimeout(() => speakQuestion(questions[nextQuestion]), 1000);
+        try {
+          await updateTokens(-1);
+          setTimeout(() => speakQuestion(questions[nextQuestion]), 1000);
+        } catch (error) {
+          toast({ title: "Token Update Failed", description: "Unable to continue. Please check your token balance.", variant: "destructive" });
+        }
       }
     }
   };
