@@ -140,10 +140,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       setTokens(data);
-      toast({
-        title: "Tokens Updated",
-        description: `${change > 0 ? 'Added' : 'Used'} ${Math.abs(change)} tokens. Balance: ${data}`,
-      });
     } catch (error) {
       console.error("Token update error:", error);
       toast({
