@@ -26,6 +26,13 @@ const GEMINI_KEYS = [
 let currentKeyIndex = 0;
 
 async function generateQuestionWithGemini(topic: string): Promise<string> {
+  console.log('Generating question with Gemini for topic:', topic);
+  console.log('Available Gemini keys:', GEMINI_KEYS.length);
+  
+  if (GEMINI_KEYS.length === 0) {
+    throw new Error('No Gemini API keys configured');
+  }
+
   const prompt = `You are a senior technical interviewer.
 
 Ask one clear, short, voice-friendly interview question based on the topic: "${topic}".
@@ -41,6 +48,8 @@ Examples:
 
   for (let i = 0; i < GEMINI_KEYS.length; i++) {
     const key = GEMINI_KEYS[currentKeyIndex];
+    console.log(`Trying Gemini key ${currentKeyIndex + 1}/${GEMINI_KEYS.length}`);
+    
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${key}`, {
         method: 'POST',
@@ -55,6 +64,8 @@ Examples:
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Gemini API error ${response.status}:`, errorText);
         throw new Error(`Gemini API error: ${response.status}`);
       }
 
@@ -62,15 +73,17 @@ Examples:
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       
       if (text) {
+        console.log('Question generated successfully');
         return text.trim();
       }
       throw new Error('No content generated');
     } catch (err) {
-      // Silent error handling - no console logging
+      console.error(`Key ${currentKeyIndex + 1} failed:`, err.message);
       currentKeyIndex = (currentKeyIndex + 1) % GEMINI_KEYS.length;
     }
   }
 
+  console.error('All Gemini keys exhausted');
   throw new Error("All Gemini keys failed.");
 }
 
@@ -202,7 +215,7 @@ serve(async (req) => {
       .limit(1);
 
     if (dbError) {
-      // Silent error handling - no console logging
+      console.error('Error fetching stored questions:', dbError.message);
     }
 
     if (storedQuestions && storedQuestions.length > 0) {
@@ -214,7 +227,7 @@ serve(async (req) => {
 
       question = storedQuestions[0].question;
       questionGenerated = true;
-      // Silent success - no console logging
+      console.log('Using stored question from database');
     } else {
       // No stored questions available, generate with Gemini
       try {
@@ -230,8 +243,9 @@ serve(async (req) => {
           });
         
         questionGenerated = true;
-        // Silent success - no console logging
+        console.log('Generated new question and stored in database');
       } catch (geminiError) {
+        console.error('Gemini generation failed:', geminiError.message);
         // If Gemini fails, try to reset and reuse existing questions
         try {
           const { data: resetResult, error: resetError } = await supabase.rpc('reset_topic_questions', {
@@ -254,7 +268,7 @@ serve(async (req) => {
 
               question = resetQuestions[0].question;
               questionGenerated = true;
-              // Silent success - no console logging
+              console.log('Using reset question after Gemini failure');
             } else {
               throw new Error('No questions available after reset');
             }
@@ -262,6 +276,7 @@ serve(async (req) => {
             throw new Error('Failed to reset questions');
           }
         } catch (resetError) {
+          console.error('Reset attempt failed, trying final Gemini fallback:', resetError.message);
           // Final fallback: generate a new question with Gemini
           question = await generateQuestionWithGemini(sanitizedTopic);
           
@@ -288,9 +303,11 @@ serve(async (req) => {
       });
 
       if (debitError) {
-        // Silent error handling - no console logging
+        console.error('Token debit error:', debitError.message);
         throw new Error('Token debit failed');
       }
+      
+      console.log('Question generated and tokens deducted successfully');
 
       // Return the question with updated token balance
       return new Response(JSON.stringify({ 
@@ -305,7 +322,7 @@ serve(async (req) => {
     }
 
   } catch (error) {
-    // Silent error handling - no console logging
+    console.error('Edge function error:', error.message, error.stack);
     return new Response(JSON.stringify({ 
       error: error.message || 'Internal server error' 
     }), {

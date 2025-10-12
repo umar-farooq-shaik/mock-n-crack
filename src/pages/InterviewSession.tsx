@@ -148,16 +148,34 @@ export default function InterviewSession() {
       const { data, error } = await supabase.functions.invoke('generate-question', {
         body: { topic }
       });
-      if (error) throw new Error('Failed to generate question');
-      if (data && data.newBalance !== undefined) {
+      
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to generate question');
+      }
+      
+      if (data?.error) {
+        console.error('API error response:', data.error);
+        throw new Error(data.error);
+      }
+      
+      if (!data?.question) {
+        console.error('No question in response:', data);
+        throw new Error('No question received from server');
+      }
+      
+      // Update token balance if provided
+      if (data.newBalance !== undefined) {
         const tokenChange = data.newBalance - tokens;
         if (tokenChange !== 0) {
           updateTokens(tokenChange);
         }
       }
+      
       return data.question;
     } catch (error) {
-      throw new Error('Failed to generate question');
+      console.error('Failed to get technical question:', error);
+      throw error instanceof Error ? error : new Error('Failed to generate question');
     }
   };
 
@@ -201,7 +219,12 @@ export default function InterviewSession() {
         setQuestions([firstQuestion]);
         setTimeout(() => speakQuestion(firstQuestion), 1000);
       } catch (error) {
-        toast({ title: "Error Loading Question", description: "Failed to load the first question. Please try again.", variant: "destructive" });
+        console.error('Error starting technical interview:', error);
+        toast({ 
+          title: "Error Loading Question", 
+          description: error instanceof Error ? error.message : "Failed to load the first question. Please try again.",
+          variant: "destructive" 
+        });
         setSessionStarted(false);
       }
     } else {
