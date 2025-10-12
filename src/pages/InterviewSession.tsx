@@ -202,6 +202,8 @@ export default function InterviewSession() {
     } else {
       const sessionQuestions = generateQuestions();
       setQuestions(sessionQuestions);
+      // Deduct token before showing first question
+      await updateTokens(-1);
       setTimeout(() => speakQuestion(sessionQuestions[0]), 1000);
     }
   };
@@ -245,9 +247,6 @@ export default function InterviewSession() {
     if (isListening && recognitionRef.current) {
       recognitionRef.current.stop();
       setIsListening(false);
-    }
-    if (interviewType !== "technical") {
-      await updateTokens(-1);
     }
     const newAnswers = [...answers, currentAnswer.trim()];
     setAnswers(newAnswers);
@@ -294,6 +293,8 @@ export default function InterviewSession() {
           toast({ title: "Error Loading Next Question", description: "Failed to load the next question. Please try again.", variant: "destructive" });
         }
       } else {
+        // Deduct token before showing next question
+        await updateTokens(-1);
         setTimeout(() => speakQuestion(questions[nextQuestion]), 1000);
       }
     }
