@@ -23,6 +23,24 @@ const GEMINI_KEYS = [
 
 let currentKeyIndex = 0;
 
+function normalizeText(s: string): string {
+  return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function isSimilar(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const min = 12;
+  return (a.length >= min && b.length >= min) && (a.includes(b) || b.includes(a));
+}
+
+function isSimilarToAny(candidate: string, existing: Set<string>): boolean {
+  for (const x of existing) {
+    if (isSimilar(candidate, x)) return true;
+  }
+  return false;
+}
+
 async function generateQuestionWithGemini(topic: string): Promise<string> {
   console.log('Generating question with Gemini for topic:', topic);
   console.log('Available Gemini keys:', GEMINI_KEYS.length);

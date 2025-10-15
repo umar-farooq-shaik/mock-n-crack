@@ -11,6 +11,8 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   updateTokens: (change: number) => Promise<void>;
+  refreshTokens: () => Promise<void>;
+  setTokensDirect: (value: number) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -151,6 +153,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
+  const refreshTokens = async () => {
+    if (user) {
+      await fetchUserTokens(user.id);
+    }
+  };
+
+  const setTokensDirect = (value: number) => {
+    setTokens(value);
+  };
+
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -196,6 +208,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     signInWithGoogle,
     signOut,
     updateTokens,
+    refreshTokens,
+    setTokensDirect,
   };
 
   return (

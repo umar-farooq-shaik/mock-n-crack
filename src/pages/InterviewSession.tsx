@@ -69,7 +69,7 @@ export default function InterviewSession() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, tokens, updateTokens, signInWithGoogle } = useAuth();
+  const { user, tokens, updateTokens, signInWithGoogle, setTokensDirect } = useAuth();
 
   const [interviewType, setInterviewType] = useState(searchParams.get("type") || "technical");
   const [topic, setTopic] = useState("");
@@ -146,7 +146,7 @@ export default function InterviewSession() {
   const getNextTechnicalQuestion = async (): Promise<string> => {
     try {
       const { data, error } = await supabase.functions.invoke('generate-question', {
-        body: { topic }
+        body: { topic, exclude: questions }
       });
       
       if (error) {
@@ -164,12 +164,9 @@ export default function InterviewSession() {
         throw new Error('No question received from server');
       }
       
-      // Update token balance if provided
+      // Update token balance if provided (sync locally without RPC)
       if (data.newBalance !== undefined) {
-        const tokenChange = data.newBalance - tokens;
-        if (tokenChange !== 0) {
-          updateTokens(tokenChange);
-        }
+        setTokensDirect(data.newBalance);
       }
       
       return data.question;
