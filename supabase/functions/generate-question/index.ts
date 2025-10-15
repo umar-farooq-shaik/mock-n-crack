@@ -295,7 +295,7 @@ serve(async (req) => {
 
     // Only deduct tokens AFTER successfully generating/getting a question
     if (questionGenerated && question) {
-      const { data: newBalance, error: debitError } = await supabase.rpc('update_user_tokens', {
+      const { data: newBalance, error: debitError } = await supabaseAuth.rpc('update_user_tokens', {
         user_uuid: user.id,
         token_change: -1,
       });
