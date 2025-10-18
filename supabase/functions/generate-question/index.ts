@@ -23,6 +23,9 @@ const GEMINI_KEYS = [
 
 let currentKeyIndex = 0;
 
+// Environment detection for tiered logging
+const isDev = Deno.env.get('ENVIRONMENT') === 'development';
+
 function normalizeText(s: string): string {
   return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
@@ -43,7 +46,11 @@ function isSimilarToAny(candidate: string, existing: Set<string>): boolean {
 
 async function generateQuestionWithGemini(topic: string): Promise<string> {
   console.log('Generating question with Gemini for topic:', topic);
-  console.log('Available Gemini keys:', GEMINI_KEYS.length);
+  
+  // Only log sensitive key information in development
+  if (isDev) {
+    console.log('Available Gemini keys:', GEMINI_KEYS.length);
+  }
   
   if (GEMINI_KEYS.length === 0) {
     throw new Error('No Gemini API keys configured');
@@ -64,7 +71,11 @@ Examples:
 
   for (let i = 0; i < GEMINI_KEYS.length; i++) {
     const key = GEMINI_KEYS[currentKeyIndex];
-    console.log(`Trying Gemini key ${currentKeyIndex + 1}/${GEMINI_KEYS.length}`);
+    
+    // Only log key rotation details in development
+    if (isDev) {
+      console.log(`Trying Gemini key ${currentKeyIndex + 1}/${GEMINI_KEYS.length}`);
+    }
     
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${key}`, {
@@ -338,9 +349,16 @@ serve(async (req) => {
     }
 
   } catch (error) {
-    console.error('Edge function error:', error.message, error.stack);
+    // Log detailed errors only in development
+    if (isDev) {
+      console.error('Edge function error:', error.message, error.stack);
+    } else {
+      console.error('Edge function error:', 'Internal error');
+    }
+    
+    // Return generic error to clients in production
     return new Response(JSON.stringify({ 
-      error: error.message || 'Internal server error' 
+      error: isDev ? error.message : 'Service temporarily unavailable' 
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
